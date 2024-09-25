@@ -1,0 +1,63 @@
+name: stream-database
+networks:
+    stream_database_network:
+        driver: bridge
+services:
+    database:
+        container_name: stream-database-db
+        image: mysql:8.0
+        restart: unless-stopped
+        environment:
+            - MYSQL_DATABASE=ecommerce
+            - MYSQL_ROOT_PASSWORD=Admin@123
+        ports:
+            - '3309:3306'
+        healthcheck:
+            test: mysqladmin ping -u root --password=$$MYSQL_ROOT_PASSWORD
+            timeout: 20s
+            retries: 10
+        volumes:
+            - stream_database_db_dist:/var/lib/mysql
+            - ./.docker/my.cnf:/etc/mysql/my.cnf
+        networks:
+            - stream_database_network
+    zookeeper:
+        container_name: steam-database-connector
+        image: debezium/zookeeper
+        ports:
+            - '2181:2181'
+            - '2888:2888'
+            - '3888:3888'
+        networks:
+            - stream_database_network
+    kafka:
+        container_name: stream-database-broker
+        image: bitnami/kafka
+        restart: unless-stopped
+        ports:
+            - '9094:9094'
+        environment:
+            - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+        depends_on:
+            zookeeper:
+                condition: service_started
+        networks:
+            - stream_database_network
+    kafka_ui:
+        container_name: stream-database-broker-ui
+        restart: unless-stopped
+        image: provectuslabs/kafka-ui:latest
+        ports:
+            - '9080:8080'
+        environment:
+            DYNAMIC_CONFIG_ENABLED: true
+            KAFKA_CLUSTERS_0_NAME: local
+            KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+        depends_on:
+            kafka:
+                condition: service_started
+        networks:
+            - stream_database_network
+volumes:
+    stream_database_db_dist:
+        driver: local
